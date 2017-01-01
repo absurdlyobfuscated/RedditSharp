@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using HtmlAgilityPack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RedditSharp.Extensions.DateTimeExtensions;
@@ -17,6 +16,8 @@ namespace RedditSharp.Things
         private const string SubredditHotUrl = "/r/{0}/hot.json";
         private const string SubredditRisingUrl = "/r/{0}/rising.json";
         private const string SubredditTopUrl = "/r/{0}/top.json?t={1}";
+        private const string SubredditControversialUrl = "/r/{0}/controversial.json";
+        private const string SubredditGildedUrl = "/r/{0}/gilded.json";
         private const string SubscribeUrl = "/api/subscribe";
         private const string GetSettingsUrl = "/r/{0}/about/edit.json";
         private const string GetReducedSettingsUrl = "/r/{0}/about.json";
@@ -44,6 +45,7 @@ namespace RedditSharp.Things
         private const string ModLogUrl = "/r/{0}/about/log.json";
         private const string ContributorsUrl = "/r/{0}/about/contributors.json";
         private const string BannedUsersUrl = "/r/{0}/about/banned.json";
+        private const string ModmailUrl = "/r/{0}/message/moderator/inbox.json";
 
         [JsonIgnore]
         private Reddit Reddit { get; set; }
@@ -187,6 +189,31 @@ namespace RedditSharp.Things
             }
         }
         /// <summary>
+        /// List of Controversial posts
+        /// </summary>
+        public Listing<Post> Controversial
+        {
+            get
+            {
+                if (Name == "/")
+                    return new Listing<Post>(Reddit, "/.json", WebAgent);
+                return new Listing<Post>(Reddit, string.Format(SubredditControversialUrl, Name), WebAgent);
+            }
+        }
+        /// <summary>
+        /// List of gilded things
+        /// </summary>
+        public Listing<VotableThing> Gilded
+        {
+            get
+            {
+                if (Name == "/")
+                    return new Listing<VotableThing>(Reddit, "/.json", WebAgent);
+                return new Listing<VotableThing>(Reddit, string.Format(SubredditGildedUrl, Name), WebAgent);
+            }
+        }
+
+        /// <summary>
         /// List of items in the mod queue
         /// </summary>
         public Listing<VotableThing> ModQueue
@@ -262,9 +289,9 @@ namespace RedditSharp.Things
             }
         }
         /// <summary>
-        /// Hacky way to obtain flair templates
+        /// Get a list of the available user flair templates for the subreddit
         /// </summary>
-        public UserFlairTemplate[] UserFlairTemplates // Hacky, there isn't a proper endpoint for this
+        public UserFlairTemplate[] UserFlairTemplates
         {
             get
             {
@@ -279,19 +306,13 @@ namespace RedditSharp.Things
                 stream.Close();
                 var response = request.GetResponse();
                 var data = WebAgent.GetResponseString(response.GetResponseStream());
-                var document = new HtmlDocument();
-                document.LoadHtml(data);
-                if (document.DocumentNode.Descendants("div").First().Attributes["error"] != null)
-                    throw new InvalidOperationException("This subreddit does not allow users to select flair.");
-                var templateNodes = document.DocumentNode.Descendants("li");
+                var json = JObject.Parse(data);
+                var choices = json["choices"];
                 var list = new List<UserFlairTemplate>();
-                foreach (var node in templateNodes)
+                foreach (var choice in choices)
                 {
-                    list.Add(new UserFlairTemplate
-                    {
-                        CssClass = node.Descendants("span").First().Attributes["class"].Value.Split(' ')[1],
-                        Text = node.Descendants("span").First().InnerText
-                    });
+                    UserFlairTemplate template = JsonConvert.DeserializeObject<UserFlairTemplate>(choice.ToString());
+                    list.Add(template);
                 }
                 return list.ToArray();
             }
@@ -353,6 +374,21 @@ namespace RedditSharp.Things
             get
             {
                 return new Listing<BannedUser>(Reddit, string.Format(BannedUsersUrl, Name), WebAgent);
+            }
+        }
+
+        /// <summary>
+        /// Subreddit modmail.
+        /// <para/>
+        ///  When calling <see cref="System.Linq.Enumerable.Take{T}"/> make sure to take replies into account!
+        /// </summary>
+        public Listing<PrivateMessage> Modmail
+        {
+            get
+            {
+                if (Reddit.User == null)
+                    throw new AuthenticationException("No user logged in.");
+                return new Listing<PrivateMessage>(Reddit, string.Format(ModmailUrl, Name), WebAgent);
             }
         }
 
