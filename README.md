@@ -32,7 +32,7 @@ foreach (var post in subreddit.New.Take(25))
 
 ```csharp
 var all = reddit.RSlashAll;
-foreach (var post in all) // BAD
+foreach (var post in all.New) // BAD
 {
     // ...
 }
@@ -42,10 +42,38 @@ This will cause you to page through everything that has ever been posted on Redd
 
 ```csharp
 var all = reddit.RSlashAll;
-foreach (var post in all.Take(25))
+foreach (var post in all.New.Take(25))
 {
     // ...
 }
+```
+
+
+**Using ListingStreams**
+
+Use ListingStreams to infinitely yeild new Things posted to reddit
+
+Example:
+
+```csharp
+// get all new comments as they are posted.
+foreach (var comment in subreddit.CommentStream)
+{
+    Console.WriteLine(DateTime.Now + "   New Comment posted to /r/example: " + comment.ShortLink);
+}
+```
+
+you can call .GetListingStream() on any Listing<Thing>
+
+```csharp
+// get new modmail
+var newModmail = user.ModMail.GetListingStream();
+foreach (var message in newModmail)
+{
+    if (message.FirstMessageName == "")
+        message.Reply("Thanks for the message - we will get back to you soon.");
+}
+
 ```
 
 ## Development
